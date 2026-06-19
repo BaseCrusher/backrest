@@ -183,21 +183,34 @@ func validatePlan(plan *v1.Plan, repos map[string]*v1.Repo) error {
 }
 
 func validateAuth(auth *v1.Auth) error {
-	if auth == nil || auth.Disabled {
+	if auth == nil {
 		return nil
 	}
 
-	if len(auth.Users) == 0 {
-		return errors.New("auth enabled but no users")
+	driver := AuthDriverOf(auth)
+	switch driver {
+	case AuthDriverDisabled:
+		// no authentication; nothing else to validate.
+	case AuthDriverLocal:
+		if len(auth.Users) == 0 {
+			return errors.New(`auth_driver "local" but no users configured`)
+		}
+		for _, user := range auth.Users {
+			if e := validationutil.ValidateID(user.Name, 0); e != nil {
+				return fmt.Errorf("user %q: %w", user.Name, e)
+			}
+			if user.GetPasswordBcrypt() == "" {
+				return fmt.Errorf("user %q: password is required", user.Name)
+			}
+		}
+	case AuthDriverOIDC:
+		// TODO(oidc): require OIDC settings once the settings message is defined.
+	default:
+		return fmt.Errorf("unknown auth_driver %q", auth.GetAuthDriver())
 	}
 
-	for _, user := range auth.Users {
-		if e := validationutil.ValidateID(user.Name, 0); e != nil {
-			return fmt.Errorf("user %q: %w", user.Name, e)
-		}
-		if user.GetPasswordBcrypt() == "" {
-			return fmt.Errorf("user %q: password is required", user.Name)
-		}
+	if driver != AuthDriverLocal && len(auth.Users) > 0 {
+		return fmt.Errorf(`users may only be configured when auth_driver is %q`, AuthDriverLocal)
 	}
 
 	return nil

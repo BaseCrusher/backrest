@@ -1,0 +1,25 @@
+services:
+  backrest:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+    image: backrest:local
+    container_name: backrest
+    hostname: backrest
+    volumes:
+      - ./docker-volume/data:/data
+      - ./docker-volume/config:/config
+      - ./docker-volume/cache:/cache
+      - ./docker-volume/tmp:/tmp
+      - ./docker-volume/rclone:/root/.config/rclone # rclone config (needed when using rclone remotes)
+      - ./docker-volume/userdata:/userdata # local paths to backup
+      - ./docker-volume/repos:/repos        # local repos (optional for remote storage)
+    environment:
+      - BACKREST_DATA=/data
+      - BACKREST_CONFIG=/config/config.json
+      - XDG_CACHE_HOME=/cache
+      - TMPDIR=/tmp
+      - TZ=America/Los_Angeles
+    ports:
+      - "9898:9898"
+    restart: unless-stopped

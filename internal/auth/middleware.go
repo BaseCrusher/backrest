@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/garethgeorge/backrest/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -18,13 +19,13 @@ const APIKeyContextKey contextKey = "api_key"
 
 func RequireAuthentication(h http.Handler, auth *Authenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		config, err := auth.config.Get()
+		cfg, err := auth.config.Get()
 		if err != nil {
 			zap.S().Errorf("auth middleware failed to get config: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		if config.GetAuth() == nil || config.GetAuth().GetDisabled() {
+		if config.AuthDisabled(cfg.GetAuth()) {
 			h.ServeHTTP(w, r)
 			return
 		}

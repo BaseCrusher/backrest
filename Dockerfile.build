@@ -1,0 +1,53 @@
+# Builds backrest from the current source tree (webui + Go binary), then
+# assembles the same runtime image as Dockerfile.alpine.
+# Used by docker-compose.yml so `docker compose up --build` compiles current state.
+
+# Stage 1: build the web UI (embedded into the Go binary via go:embed).
+# Node >=22.13 required by the pinned pnpm (corepack) version.
+FROM node:24-alpine AS webui
+RUN corepack enable
+WORKDIR /webui
+COPY webui/package.json webui/pnpm-lock.yaml ./
+# pnpm >=10 blocks dependency build scripts unless whitelisted. esbuild's
+# postinstall must run to fetch its platform binary (vite build needs it), so
+# allow the native builds non-interactively. Written before install so the
+# scripts run during `pnpm install`.
+RUN printf "allowBuilds:\n  '@parcel/watcher': true\n  esbuild: true\n" > pnpm-workspace.yaml
+RUN pnpm install --frozen-lockfile
+COPY webui/ ./
+# The COPY above overwrites pnpm-workspace.yaml with the untracked placeholder
+# present in the working tree; rewrite it so the deps check pnpm runs before
+# `pnpm run build` doesn't re-trigger the ignored-builds gate.
+RUN printf "allowBuilds:\n  '@parcel/watcher': true\n  esbuild: true\n" > pnpm-workspace.yaml
+RUN pnpm run build
+
+# Stage 2: build the Go binaries (server + docker entrypoint).
+# No "tray" build tag -> uses tray_stub.go, so CGO is not required.
+FROM golang:1.26-alpine AS build
+RUN apk add --no-cache git
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+# Provide the freshly built UI for the //go:embed dist directive in webui.
+COPY --from=webui /webui/dist ./webui/dist
+ENV CGO_ENABLED=0 GOOS=linux
+RUN go build -ldflags="-s -w" -o /out/backrest ./cmd/backrest && \
+    go build -ldflags="-s -w" -o /out/docker-entrypoint ./cmd/docker-entrypoint
+
+# Stage 3: runtime image (mirrors Dockerfile.alpine).
+FROM alpine:latest
+LABEL org.opencontainers.image.source="https://github.com/garethgeorge/backrest"
+RUN apk --no-cache add tini ca-certificates curl bash rclone openssh tzdata docker-cli && \
+    rclone selfupdate --stable
+RUN mkdir -p /tmp
+
+COPY --from=build /out/backrest /backrest
+COPY --from=build /out/docker-entrypoint /docker-entrypoint
+
+# Install dependencies (restic) and stage it on PATH.
+RUN /backrest --install-deps-only
+RUN mkdir -p /bin && mv /root/.local/share/backrest/restic /bin/restic
+
+ENTRYPOINT ["/sbin/tini", "--", "/docker-entrypoint"]
+CMD ["/backrest"]

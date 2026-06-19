@@ -304,8 +304,9 @@ message Hook {
 }
 
 message Auth {
-  bool disabled = 1 [json_name="disabled"]; // disable authentication.
-  repeated User users = 2 [json_name="users"]; // users to allow access to the UI.
+  bool disabled = 1 [json_name="disabled", deprecated=true]; // DEPRECATED: use auth_driver="disabled". When true it takes precedence over auth_driver.
+  repeated User users = 2 [json_name="users"]; // users to allow access to the UI. only valid when auth_driver is "local".
+  string auth_driver = 3 [json_name="authDriver"]; // "disabled", "local" (default when empty), or "oidc".
 }
 
 message User {

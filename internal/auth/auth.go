@@ -29,12 +29,12 @@ var ErrInvalidPassword = errors.New("invalid password")
 var ErrInvalidKey = errors.New("invalid key")
 
 func (a *Authenticator) Login(username, password string) (*v1.User, error) {
-	config, err := a.config.Get()
+	cfg, err := a.config.Get()
 	if err != nil {
 		return nil, fmt.Errorf("get config: %w", err)
 	}
-	auth := config.GetAuth()
-	if auth == nil || auth.GetDisabled() {
+	auth := cfg.GetAuth()
+	if config.AuthDisabled(auth) {
 		return nil, errors.New("authentication is disabled")
 	}
 
@@ -54,11 +54,11 @@ func (a *Authenticator) Login(username, password string) (*v1.User, error) {
 }
 
 func (a *Authenticator) VerifyJWT(token string) (*v1.User, error) {
-	config, err := a.config.Get()
+	cfg, err := a.config.Get()
 	if err != nil {
 		return nil, fmt.Errorf("get config: %w", err)
 	}
-	auth := config.GetAuth()
+	auth := cfg.GetAuth()
 	if auth == nil {
 		return nil, fmt.Errorf("auth config not set")
 	}
