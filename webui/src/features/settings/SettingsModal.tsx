@@ -53,7 +53,12 @@ import {
   type SectionDef,
 } from "../../components/common/TwoPaneModal";
 import { SectionCard } from "../../components/common/SectionCard";
-import { ToggleField } from "../../components/common/ToggleField";
+import {
+  AUTH_DRIVER_DISABLED,
+  AUTH_DRIVER_LOCAL,
+  AUTH_DRIVER_OIDC,
+  effectiveAuthDriver,
+} from "../../state/configutil";
 
 export const SettingsModal = () => {
   const [config, setConfig] = useConfig();
@@ -80,7 +85,7 @@ export const SettingsModal = () => {
     return {
       instance: config.instance || "",
       auth: {
-        disabled: config.auth?.disabled || false,
+        authDriver: effectiveAuthDriver(config.auth),
         users:
           config.auth?.users?.map((u: any) => ({
             ...(toJson(UserSchema, u, { alwaysEmitImplicit: true }) as any),
@@ -113,6 +118,14 @@ export const SettingsModal = () => {
       { label: "24 hours", value: "86400" },
       { label: "7 days", value: "604800" },
       { label: "Forever", value: "0" },
+    ],
+  });
+
+  const authDriverOptions = createListCollection({
+    items: [
+      { label: "Disabled (no login required)", value: AUTH_DRIVER_DISABLED },
+      { label: "Local (username / password)", value: AUTH_DRIVER_LOCAL },
+      { label: "OIDC (OpenID Connect)", value: AUTH_DRIVER_OIDC },
     ],
   });
 
@@ -215,9 +228,13 @@ export const SettingsModal = () => {
       });
       newConfig.instance = workingData.instance;
 
-      if (!newConfig.auth?.users && !newConfig.auth?.disabled) {
+      const driver = workingData.auth?.authDriver || AUTH_DRIVER_LOCAL;
+      if (
+        driver === AUTH_DRIVER_LOCAL &&
+        (!workingData.auth?.users || workingData.auth.users.length === 0)
+      ) {
         throw new Error(
-          "At least one user must be configured or authentication must be disabled",
+          'At least one user must be configured when the auth driver is "local"',
         );
       }
 
@@ -240,6 +257,7 @@ export const SettingsModal = () => {
   };
 
   const users = getField(["auth", "users"]) || [];
+  const authDriver = getField(["auth", "authDriver"]) || AUTH_DRIVER_LOCAL;
 
   const sections: SectionDef[] = [
     { id: "general", label: "General", icon: <FiSettings size={14} /> },
@@ -278,7 +296,7 @@ export const SettingsModal = () => {
           description="Instance identity and display preferences."
         >
           <Stack gap={4}>
-            {users.length === 0 && !getField(["auth", "disabled"]) && (
+            {users.length === 0 && authDriver === AUTH_DRIVER_LOCAL && (
               <Alert status="warning">
                 <Stack gap={1}>
                   <strong>{m.settings_initial_setup_title()}</strong>
@@ -316,13 +334,40 @@ export const SettingsModal = () => {
           description="User accounts and access control."
         >
           <Stack gap={4}>
-            <ToggleField
-              checked={getField(["auth", "disabled"]) || false}
-              onChange={(v) => updateField(["auth", "disabled"], v)}
-              label={m.settings_auth_disable()}
-              hint="When disabled, no login is required to access Backrest."
-            />
+            <Field
+              label="Authentication driver"
+              helperText='How users authenticate. "Disabled" requires no login. "Local" uses username/password accounts. "OIDC" delegates to an OpenID Connect provider.'
+            >
+              <SelectRoot
+                collection={authDriverOptions}
+                value={[authDriver]}
+                onValueChange={(e: any) =>
+                  updateField(["auth", "authDriver"], e.value[0])
+                }
+              >
+                {/* @ts-ignore */}
+                <SelectTrigger>
+                  {/* @ts-ignore */}
+                  <SelectValueText placeholder="Select auth driver" />
+                </SelectTrigger>
+                {/* @ts-ignore */}
+                <SelectContent zIndex={2000}>
+                  {authDriverOptions.items.map((option: any) => (
+                    <SelectItem item={option} key={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </SelectRoot>
+            </Field>
 
+            {authDriver === AUTH_DRIVER_OIDC && (
+              <Alert status="info">
+                OIDC settings configuration is coming soon.
+              </Alert>
+            )}
+
+            {authDriver === AUTH_DRIVER_LOCAL && (
             <Field label={m.settings_auth_users()} required>
               <Stack gap={3} width="full">
                 {users.map((user: any, index: number) => (
@@ -386,6 +431,7 @@ export const SettingsModal = () => {
                 </Button>
               </Stack>
             </Field>
+            )}
           </Stack>
         </SectionCard>
       </TwoPaneSection>

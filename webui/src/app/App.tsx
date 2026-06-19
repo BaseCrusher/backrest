@@ -58,7 +58,7 @@ import { Code } from "@connectrpc/connect";
 import { LoginModal } from "../features/auth/LoginModal";
 import { backrestService, syncStateService, setAuthToken } from "../api/client";
 import { useConfig } from "./provider";
-import { shouldShowSettings } from "../state/configutil";
+import { shouldShowSettings, isAuthDisabled } from "../state/configutil";
 import { OpSelector, OpSelectorSchema } from "../../gen/ts/v1/service_pb";
 import { colorForStatus } from "../api/flowDisplayAggregator";
 import {
@@ -924,7 +924,7 @@ export const App: React.FC = () => {
             {config && config.instance ? config.instance : undefined}
           </Text>
           <ColorModeButton color="white" />
-          {config && !config.auth?.disabled && (
+          {config && !isAuthDisabled(config.auth) && (
             <Button
               variant="ghost"
               size="sm"
