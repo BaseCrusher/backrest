@@ -4,6 +4,9 @@ export const AUTH_DRIVER_DISABLED = "disabled";
 export const AUTH_DRIVER_LOCAL = "local";
 export const AUTH_DRIVER_OIDC = "oidc";
 
+// Default OIDC scopes requested when none are configured. Mirrors the backend default.
+export const DEFAULT_OIDC_SCOPES = ["openid", "email", "profile"];
+
 // effectiveAuthDriver mirrors config.AuthDriverOf in the Go backend.
 // Precedence: deprecated `disabled` flag wins, then auth_driver, empty -> local.
 export const effectiveAuthDriver = (auth?: Auth): string => {

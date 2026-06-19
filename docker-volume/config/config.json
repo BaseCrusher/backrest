@@ -1,0 +1,25 @@
+{
+  "modno": 1,
+  "version": 6,
+  "instance": "asdfasdf",
+  "auth": {
+    "authDriver": "oidc",
+    "oidc": {
+      "issuerUrl": "https://asdf.com",
+      "clientId": "asdfasdf",
+      "clientSecret": "asdfasdf",
+      "scopes": [
+        "openid",
+        "email",
+        "profile"
+      ]
+    }
+  },
+  "sync": {
+    "identity": {
+      "keyId": "ed25519.eUIuqL8uDH2HEPBrf0IpuiWRJSCMzuSRgTdjrUJPLhc",
+      "ed25519priv": "uR7LYFhB432wBX18nqAMhU9oYWxf6B3lO9U2Sd+hkzM",
+      "ed25519pub": "1/mAC8AyloMaK6MrFFGZEg9BCP0IQZCjACIl++Fse34"
+    }
+  }
+}

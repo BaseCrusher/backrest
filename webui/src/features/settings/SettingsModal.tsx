@@ -25,6 +25,7 @@ import { clone, create, fromJson, toJson } from "@bufbuild/protobuf";
 import {
   AuthSchema,
   ConfigSchema,
+  OidcConfigSchema,
   UserSchema,
   MultihostSchema,
   Multihost_PeerSchema,
@@ -57,6 +58,7 @@ import {
   AUTH_DRIVER_DISABLED,
   AUTH_DRIVER_LOCAL,
   AUTH_DRIVER_OIDC,
+  DEFAULT_OIDC_SCOPES,
   effectiveAuthDriver,
 } from "../../state/configutil";
 
@@ -91,6 +93,17 @@ export const SettingsModal = () => {
             ...(toJson(UserSchema, u, { alwaysEmitImplicit: true }) as any),
             isExisting: true,
           })) || [],
+        oidc: {
+          ...(config.auth?.oidc
+            ? (toJson(OidcConfigSchema, config.auth.oidc, {
+                alwaysEmitImplicit: true,
+              }) as any)
+            : {}),
+          scopes:
+            config.auth?.oidc?.scopes && config.auth.oidc.scopes.length > 0
+              ? config.auth.oidc.scopes
+              : DEFAULT_OIDC_SCOPES,
+        },
       },
       multihost: {
         identity: { keyid: config.multihost?.identity?.keyid || "" },
@@ -237,6 +250,18 @@ export const SettingsModal = () => {
           'At least one user must be configured when the auth driver is "local"',
         );
       }
+      if (driver === AUTH_DRIVER_OIDC) {
+        const oidc = workingData.auth?.oidc;
+        if (!oidc?.issuerUrl?.trim()) {
+          throw new Error("OIDC issuer URL is required");
+        }
+        if (!oidc?.clientId?.trim()) {
+          throw new Error("OIDC client ID is required");
+        }
+      } else {
+        // only persist oidc settings when the oidc driver is selected.
+        delete newConfig.auth.oidc;
+      }
 
       setConfig(await backrestService.setConfig(newConfig));
       setInitialFormData(JSON.stringify(formData));
@@ -362,9 +387,115 @@ export const SettingsModal = () => {
             </Field>
 
             {authDriver === AUTH_DRIVER_OIDC && (
-              <Alert status="info">
-                OIDC settings configuration is coming soon.
-              </Alert>
+              <Stack gap={4} width="full">
+                <Field
+                  label="Issuer URL"
+                  required
+                  helperText="OIDC provider issuer URL. Used for .well-known discovery, e.g. https://accounts.google.com"
+                >
+                  <Input
+                    value={getField(["auth", "oidc", "issuerUrl"]) || ""}
+                    placeholder="https://issuer.example.com"
+                    onChange={(e) =>
+                      updateField(["auth", "oidc", "issuerUrl"], e.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Client ID" required>
+                  <Input
+                    value={getField(["auth", "oidc", "clientId"]) || ""}
+                    onChange={(e) =>
+                      updateField(["auth", "oidc", "clientId"], e.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Client secret"
+                  helperText="Optional. Leave empty for public clients (PKCE)."
+                >
+                  <PasswordInput
+                    value={getField(["auth", "oidc", "clientSecret"]) || ""}
+                    onChange={(e) =>
+                      updateField(
+                        ["auth", "oidc", "clientSecret"],
+                        e.target.value,
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Scopes"
+                  helperText="Space-separated OAuth2 scopes. Defaults to openid email profile."
+                >
+                  <Input
+                    value={(getField(["auth", "oidc", "scopes"]) || []).join(
+                      " ",
+                    )}
+                    placeholder="openid email profile"
+                    onChange={(e) =>
+                      updateField(
+                        ["auth", "oidc", "scopes"],
+                        e.target.value.split(/\s+/).filter(Boolean),
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Redirect URL"
+                  helperText="Optional. Derived from the request host when empty."
+                >
+                  <Input
+                    value={getField(["auth", "oidc", "redirectUrl"]) || ""}
+                    placeholder="https://backrest.example.com/oidc/callback"
+                    onChange={(e) =>
+                      updateField(
+                        ["auth", "oidc", "redirectUrl"],
+                        e.target.value,
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Allowed emails"
+                  helperText="Optional. Comma-separated. If set, only these emails may log in."
+                >
+                  <Input
+                    value={(
+                      getField(["auth", "oidc", "allowedEmails"]) || []
+                    ).join(", ")}
+                    placeholder="alice@example.com, bob@example.com"
+                    onChange={(e) =>
+                      updateField(
+                        ["auth", "oidc", "allowedEmails"],
+                        e.target.value
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Allowed domains"
+                  helperText="Optional. Comma-separated bare domains. If set, only emails in these domains may log in."
+                >
+                  <Input
+                    value={(
+                      getField(["auth", "oidc", "allowedDomains"]) || []
+                    ).join(", ")}
+                    placeholder="example.com, example.org"
+                    onChange={(e) =>
+                      updateField(
+                        ["auth", "oidc", "allowedDomains"],
+                        e.target.value
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                      )
+                    }
+                  />
+                </Field>
+              </Stack>
             )}
 
             {authDriver === AUTH_DRIVER_LOCAL && (

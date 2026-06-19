@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -204,13 +205,47 @@ func validateAuth(auth *v1.Auth) error {
 			}
 		}
 	case AuthDriverOIDC:
-		// TODO(oidc): require OIDC settings once the settings message is defined.
+		if e := validateOidc(auth.GetOidc()); e != nil {
+			return e
+		}
 	default:
 		return fmt.Errorf("unknown auth_driver %q", auth.GetAuthDriver())
 	}
 
 	if driver != AuthDriverLocal && len(auth.Users) > 0 {
 		return fmt.Errorf(`users may only be configured when auth_driver is %q`, AuthDriverLocal)
+	}
+
+	return nil
+}
+
+func validateOidc(oidc *v1.OidcConfig) error {
+	if oidc == nil {
+		return errors.New(`auth_driver "oidc" but no oidc settings configured`)
+	}
+
+	issuer := strings.TrimSpace(oidc.GetIssuerUrl())
+	if issuer == "" {
+		return errors.New("oidc: issuer_url is required")
+	}
+	if u, err := url.Parse(issuer); err != nil || u.Scheme != "https" && u.Scheme != "http" || u.Host == "" {
+		return fmt.Errorf("oidc: issuer_url %q must be an absolute http(s) URL", issuer)
+	}
+
+	if strings.TrimSpace(oidc.GetClientId()) == "" {
+		return errors.New("oidc: client_id is required")
+	}
+
+	if redirect := strings.TrimSpace(oidc.GetRedirectUrl()); redirect != "" {
+		if u, err := url.Parse(redirect); err != nil || u.Scheme != "https" && u.Scheme != "http" || u.Host == "" {
+			return fmt.Errorf("oidc: redirect_url %q must be an absolute http(s) URL", redirect)
+		}
+	}
+
+	for _, domain := range oidc.GetAllowedDomains() {
+		if strings.Contains(domain, "@") {
+			return fmt.Errorf("oidc: allowed_domains entry %q must be a bare domain (no @)", domain)
+		}
 	}
 
 	return nil
