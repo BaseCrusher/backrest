@@ -1,25 +1,25 @@
 {
-  "modno": 1,
-  "version": 6,
-  "instance": "asdfasdf",
-  "auth": {
-    "authDriver": "oidc",
-    "oidc": {
-      "issuerUrl": "https://asdf.com",
-      "clientId": "asdfasdf",
-      "clientSecret": "asdfasdf",
-      "scopes": [
+  "modno":  1,
+  "version":  6,
+  "instance":  "asdf",
+  "auth":  {
+    "authDriver":  "oidc",
+    "oidc":  {
+      "issuerUrl":  "http://localhost:8080/realms/master",
+      "clientId":  "backrest",
+      "clientSecret":  "3jpW4nLOccDiEPm1t1XnbCNH2GKNTsuz",
+      "scopes":  [
         "openid",
         "email",
         "profile"
       ]
     }
   },
-  "sync": {
-    "identity": {
-      "keyId": "ed25519.eUIuqL8uDH2HEPBrf0IpuiWRJSCMzuSRgTdjrUJPLhc",
-      "ed25519priv": "uR7LYFhB432wBX18nqAMhU9oYWxf6B3lO9U2Sd+hkzM",
-      "ed25519pub": "1/mAC8AyloMaK6MrFFGZEg9BCP0IQZCjACIl++Fse34"
+  "sync":  {
+    "identity":  {
+      "keyId":  "ed25519.RdGTEcY8inaw9BTH0zSw6Z2H-jGQNgwGRlUjnINQ0Rs",
+      "ed25519priv":  "3wa4cnER2HNxssUTXAQHA7Ipi+YNemj7WKae1/YFLpA",
+      "ed25519pub":  "iQksr/3rQfYbZhLZxsTepB6NhtZvTOXTshBtHv/SDoM"
     }
   }
 }

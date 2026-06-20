@@ -79,6 +79,12 @@ func (a *Authenticator) VerifyJWT(token string) (*v1.User, error) {
 		return nil, fmt.Errorf("get subject: %w", err)
 	}
 
+	// OIDC sessions are not backed by config users; the signed subject (email) is
+	// the identity. Allow-list enforcement happens at login time in the OIDC flow.
+	if config.AuthDriverOf(auth) == config.AuthDriverOIDC {
+		return &v1.User{Name: subject}, nil
+	}
+
 	for _, user := range auth.GetUsers() {
 		if user.Name == subject {
 			return user, nil
@@ -89,9 +95,16 @@ func (a *Authenticator) VerifyJWT(token string) (*v1.User, error) {
 }
 
 func (a *Authenticator) CreateJWT(user *v1.User) (string, error) {
+	return a.CreateJWTForSubject(user.Name)
+}
+
+// CreateJWTForSubject mints a backrest session JWT for an arbitrary subject.
+// Used by the OIDC flow where the subject is the verified email rather than a
+// config user.
+func (a *Authenticator) CreateJWTForSubject(subject string) (string, error) {
 	claims := &jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
-		Subject:   user.Name,
+		Subject:   subject,
 	}
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

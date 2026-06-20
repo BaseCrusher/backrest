@@ -48,7 +48,7 @@ import {
 import { Config, Multihost_Peer, Plan, Repo } from "../../gen/ts/v1/config_pb";
 import { alerts } from "../components/common/Alerts";
 import { useShowModal } from "../components/common/ModalManager";
-import { uiBuildVersion } from "../state/buildcfg";
+import { uiBuildVersion, backendUrl } from "../state/buildcfg";
 import { ActivityBar } from "../components/layout/ActivityBar";
 import { OperationStatus } from "../../gen/ts/v1/operations_pb";
 import { useResourceStatus } from "../api/resourceStatus";
@@ -56,7 +56,12 @@ import LogoSvg from "../../assets/logo.svg";
 import { keyBy } from "../lib/util";
 import { Code } from "@connectrpc/connect";
 import { LoginModal } from "../features/auth/LoginModal";
-import { backrestService, syncStateService, setAuthToken } from "../api/client";
+import {
+  backrestService,
+  syncStateService,
+  setAuthToken,
+  authenticationService,
+} from "../api/client";
 import { useConfig } from "./provider";
 import { shouldShowSettings, isAuthDisabled } from "../state/configutil";
 import { OpSelector, OpSelectorSchema } from "../../gen/ts/v1/service_pb";
@@ -924,7 +929,9 @@ export const App: React.FC = () => {
             {config && config.instance ? config.instance : undefined}
           </Text>
           <ColorModeButton color="white" />
-          {config && !isAuthDisabled(config.auth) && (
+          {config &&
+            !isAuthDisabled(config.auth) &&
+            config.auth?.authDriver !== "oidc" && (
             <Button
               variant="ghost"
               size="sm"
@@ -1073,7 +1080,33 @@ const AuthenticationBoundary = ({
         setIsLoading(false);
         const code = err.code;
         if (err.code === Code.Unauthenticated) {
-          showModal(<LoginModal />);
+          // The user is not authenticated. Ask the backend which auth driver is
+          // active so we know how to prompt: a local password form, or an
+          // immediate redirect to the configured OIDC provider.
+          const hasAuthError = new URLSearchParams(window.location.search).has(
+            "authError",
+          );
+          authenticationService
+            .getAuthInfo({})
+            .then((info) => {
+              if (info.authDriver === "oidc" && info.oidcLoginUrl) {
+                if (hasAuthError) {
+                  // A prior login attempt failed; don't loop back to the provider.
+                  // Surface the error and let the user reload to retry.
+                  setError(m.app_error_initial_config());
+                  alerts.error(m.app_error_initial_config(), 0);
+                  return;
+                }
+                // Redirect straight to the provider (no intermediate SSO screen).
+                const base = new URL(backendUrl, window.location.href);
+                window.location.href = new URL(info.oidcLoginUrl, base).href;
+                return;
+              }
+              showModal(<LoginModal />);
+            })
+            .catch(() => {
+              showModal(<LoginModal />);
+            });
           return;
         } else if (
           err.code !== Code.Unavailable &&

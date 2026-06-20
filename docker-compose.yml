@@ -3,9 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.build
-    image: backrest:local
     container_name: backrest
     hostname: backrest
+    network_mode: host
     volumes:
       - ./docker-volume/data:/data
       - ./docker-volume/config:/config
@@ -22,4 +22,46 @@ services:
       - TZ=America/Los_Angeles
     ports:
       - "9898:9898"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18
+    container_name: keycloak-postgres
+    hostname: postgres
+    environment:
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=keycloak
+      - POSTGRES_DB=keycloak
+      - PGDATA=/var/lib/postgresql/data
+    volumes:
+      # Restored on every fresh container because the data dir (below) is tmpfs.
+      - ./keycloak_dump.sql:/docker-entrypoint-initdb.d/keycloak_dump.sql:ro
+    tmpfs:
+      # Ephemeral, in-memory data dir: no clean db is persisted; the dump above
+      # seeds a fresh keycloak db each time the container is (re)created.
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: keycloak
+    hostname: keycloak
+    command: start-dev
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloak
+      - KC_BOOTSTRAP_ADMIN_USERNAME=temp-admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - KC_HEALTH_ENABLED=true
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped

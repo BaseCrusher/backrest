@@ -17,6 +17,10 @@ func (k contextKey) String() string {
 const UserContextKey contextKey = "user"
 const APIKeyContextKey contextKey = "api_key"
 
+// SessionCookieName is the httpOnly cookie holding the backrest session JWT.
+// Set by the OIDC callback; read here as a fallback to the Authorization header.
+const SessionCookieName = "backrest-session"
+
 func RequireAuthentication(h http.Handler, auth *Authenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := auth.config.Get()
@@ -50,8 +54,13 @@ func RequireAuthentication(h http.Handler, auth *Authenticator) http.Handler {
 
 		token, err := ParseBearerToken(r.Header.Get("Authorization"))
 		if err != nil {
-			http.Error(w, "Unauthorized (No Authorization Header)", http.StatusUnauthorized)
-			return
+			// Fall back to the session cookie set by the OIDC flow.
+			if c, cerr := r.Cookie(SessionCookieName); cerr == nil && c.Value != "" {
+				token = c.Value
+			} else {
+				http.Error(w, "Unauthorized (No Authorization Header)", http.StatusUnauthorized)
+				return
+			}
 		}
 
 		user, err := auth.VerifyJWT(token)
